@@ -6,6 +6,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <cinttypes>
+#include <fstream> // [MỚI] Để đọc file
+#include <string>  // [MỚI] Để xử lý chuỗi
+#include <algorithm> // [MỚI] Để xử lý chuỗi
+
 #include "hack.h"
 #include "zygisk.hpp"
 #include "game.h"
@@ -14,6 +18,25 @@
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::ServerSpecializeArgs;
+
+// --- [MỚI] HÀM ĐỌC TARGET PACKAGE TỪ FILE ---
+std::string GetTargetPackage() {
+    // Đường dẫn file cấu hình do App MAUI tạo ra
+    std::ifstream file("/data/local/tmp/dumper_target.txt");
+    std::string target;
+    
+    if (file.is_open()) {
+        std::getline(file, target);
+        file.close();
+        
+        // Xử lý chuỗi: Xóa khoảng trắng hoặc xuống dòng thừa (Trim)
+        // Vì lệnh 'echo' thường thêm ký tự xuống dòng \n
+        const char* whitespace = " \t\n\r\f\v";
+        target.erase(target.find_last_not_of(whitespace) + 1);
+        target.erase(0, target.find_first_not_of(whitespace));
+    }
+    return target;
+}
 
 class MyModule : public zygisk::ModuleBase {
 public:
@@ -46,7 +69,15 @@ private:
     size_t length;
 
     void preSpecialize(const char *package_name, const char *app_data_dir) {
-        if (strcmp(package_name, GamePackageName) == 0) {
+        // --- [SỬA ĐỔI CHÍNH TẠI ĐÂY] ---
+        
+        // 1. Lấy package mục tiêu từ file
+        std::string target = GetTargetPackage();
+
+        // 2. So sánh: Nếu file target có nội dung VÀ trùng với package đang mở
+        // (Thay thế cho đoạn strcmp(package_name, GamePackageName) cũ)
+        if (!target.empty() && strcmp(package_name, target.c_str()) == 0) {
+            
             LOGI("detect game: %s", package_name);
             enable_hack = true;
             game_data_dir = new char[strlen(app_data_dir) + 1];
@@ -72,6 +103,7 @@ private:
             }
 #endif
         } else {
+            // Nếu không phải game mục tiêu -> Tắt module để tiết kiệm pin/RAM
             api->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
         }
     }
