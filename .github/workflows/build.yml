@@ -1,12 +1,9 @@
-name: Build Zygisk Dumper
+name: Build Universal Zygisk Dumper
 
 on:
-  workflow_dispatch:
-    inputs:
-      package_name:
-        description: "Nhập Package Name (ví dụ: com.unity.game):"
-        required: true
-        default: "com.example.game"
+  workflow_dispatch:  # Chỉ cần nút bấm chạy, không cần input
+  push:
+    branches: [ main ] # Hoặc tự chạy khi có commit mới
 
 jobs:
   build:
@@ -26,28 +23,12 @@ jobs:
 
     - name: Build Module
       run: |
-        # Cấp quyền chạy cho Gradle
         chmod +x ./gradlew
-        
-        # 1. Hiển thị gói đang build (Debug)
-        echo "Target Package: ${{ github.event.inputs.package_name }}"
-
-        # 2. Thay thế Package Name trong file C++ (game.h)
-        # Lệnh này tìm "com.game.packagename" và thay bằng cái bạn nhập vào
-        sed -i "s/com.game.packagename/${{ github.event.inputs.package_name }}/g" module/src/main/cpp/game.h
-
-        # 3. (Tùy chọn) Thay thế mô tả trong module.prop hoặc build.gradle để hiển thị trong Magisk
-        # Giả sử bạn muốn sửa description trong module.prop
-        if [ -f "module/src/main/assets/module.prop" ]; then
-            sed -i "s/description=.*/description=Dumper for ${{ github.event.inputs.package_name }}/g" module/src/main/assets/module.prop
-        fi
-
-        # 4. Bắt đầu Build
+        # Không cần sed sửa tên gói nữa, vì code C++ tự đọc file txt
         ./gradlew :module:assembleRelease
 
-    - name: Rename and Upload Artifact
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        # Đặt tên file theo tên gói cho dễ tìm
-        name: Zygisk-Dumper-${{ github.event.inputs.package_name }}
+        name: Zygisk-Universal-Dumper
         path: out/magisk_module_release/*.zip
