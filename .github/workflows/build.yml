@@ -1,27 +1,53 @@
-name: Build
+name: Build Zygisk Dumper
+
 on:
   workflow_dispatch:
-      inputs:
-        package_name:
-          description: "Package name of the game:"
-          required: true
+    inputs:
+      package_name:
+        description: "Nhập Package Name (ví dụ: com.unity.game):"
+        required: true
+        default: "com.example.game"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
     - uses: actions/setup-java@v3
       with:
-        distribution: temurin
-        java-version: 11
-        cache: gradle
-    - run: |
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup NDK
+      uses: android-actions/setup-android@v3
+
+    - name: Build Module
+      run: |
+        # Cấp quyền chạy cho Gradle
         chmod +x ./gradlew
-        sed -i 's/moduleDescription = "/moduleDescription = "(${{ github.event.inputs.package_name }}) /g' module.gradle
+        
+        # 1. Hiển thị gói đang build (Debug)
+        echo "Target Package: ${{ github.event.inputs.package_name }}"
+
+        # 2. Thay thế Package Name trong file C++ (game.h)
+        # Lệnh này tìm "com.game.packagename" và thay bằng cái bạn nhập vào
         sed -i "s/com.game.packagename/${{ github.event.inputs.package_name }}/g" module/src/main/cpp/game.h
+
+        # 3. (Tùy chọn) Thay thế mô tả trong module.prop hoặc build.gradle để hiển thị trong Magisk
+        # Giả sử bạn muốn sửa description trong module.prop
+        if [ -f "module/src/main/assets/module.prop" ]; then
+            sed -i "s/description=.*/description=Dumper for ${{ github.event.inputs.package_name }}/g" module/src/main/assets/module.prop
+        fi
+
+        # 4. Bắt đầu Build
         ./gradlew :module:assembleRelease
-    - uses: actions/upload-artifact@v3
+
+    - name: Rename and Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
-        name: zygisk-il2cppdumper
-        path: out/magisk_module_release/
+        # Đặt tên file theo tên gói cho dễ tìm
+        name: Zygisk-Dumper-${{ github.event.inputs.package_name }}
+        path: out/magisk_module_release/*.zip
